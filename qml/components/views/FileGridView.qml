@@ -496,6 +496,7 @@ Item {
                     property real pressX: 0
                     property real pressY: 0
                     property bool isDragging: false
+                    property bool forwarding: false
 
                     onPressed: mouse => {
                         root.notifyFocus();
@@ -510,9 +511,26 @@ Item {
                         pressX = mouse.x;
                         pressY = mouse.y;
                         isDragging = false;
+                        forwarding = false;
+                        // An unselected item hands its drag over to the view so
+                        // the view keeps scrolling or rubber-band selecting even
+                        // when the gesture starts over an item. A selected item
+                        // keeps the gesture so it can be dragged away.
+                        if (!root.isSelected(delegateContainer.modelData.path)) {
+                            const p = mapToItem(dragSelectArea, mouse.x, mouse.y);
+                            if (dragSelectArea.insideContent(p.x, p.y)) {
+                                dragSelectArea.beginGesture(p.x, p.y);
+                                forwarding = true;
+                            }
+                        }
                     }
 
                     onPositionChanged: mouse => {
+                        if (forwarding) {
+                            const p = mapToItem(dragSelectArea, mouse.x, mouse.y);
+                            dragSelectArea.updateGesture(p.x, p.y, mouse.buttons, mouse.modifiers);
+                            return;
+                        }
                         if (dragSelectArea.isSelecting) return;
                         if (mouse.buttons & Qt.LeftButton) {
                             let dx = mouse.x - pressX;
@@ -522,6 +540,13 @@ Item {
                                 let paths = root.isSelected(delegateContainer.modelData.path) ? root.selectedPaths : [delegateContainer.modelData.path];
                                 FileOperations.startNativeDrag(paths, itemCard.width, itemCard.height, root.zoomSize);
                             }
+                        }
+                    }
+
+                    onReleased: mouse => {
+                        if (forwarding) {
+                            dragSelectArea.endGesture();
+                            forwarding = false;
                         }
                     }
 
@@ -539,6 +564,11 @@ Item {
                             return;
                         }
                         if (isDragging || dragSelectArea.isSelecting) return;
+                        if (dragSelectArea.wasSelecting || dragSelectArea.wasScrolling) {
+                            dragSelectArea.wasSelecting = false;
+                            dragSelectArea.wasScrolling = false;
+                            return;
+                        }
                         if (mouse.button === Qt.BackButton || mouse.button === Qt.ExtraButton1) {
                             if (root.activeTab && root.activeTab.canGoBack) root.activeTab.goBack();
                         } else if (mouse.button === Qt.ForwardButton || mouse.button === Qt.ExtraButton2) {
@@ -719,18 +749,15 @@ Item {
             return p.x >= 0 && p.y >= 0 && p.x <= view.width && p.y <= view.height;
         }
 
-        onPressed: mouse => {
-            if (!insideContent(mouse.x, mouse.y)) {
-                mouse.accepted = false;
-                return;
-            }
-            root.notifyFocus();
-            startX = mouse.x;
-            startY = mouse.y;
-            currentX = mouse.x;
-            currentY = mouse.y;
-            anchorContentX = mouse.x - view.x + view.contentX;
-            anchorContentY = mouse.y - view.y + view.contentY;
+        // Gesture handling is exposed as functions so the item delegates can
+        // hand a drag over to the view when the pressed item is not selected.
+        function beginGesture(x, y) {
+            startX = x;
+            startY = y;
+            currentX = x;
+            currentY = y;
+            anchorContentX = x - view.x + view.contentX;
+            anchorContentY = y - view.y + view.contentY;
             lastContentY = view.contentY;
             scrollAnchorContentX = view.contentX;
             scrollAnchorContentY = view.contentY;
@@ -740,16 +767,16 @@ Item {
             wasScrolling = false;
         }
 
-        onPositionChanged: mouse => {
-            currentX = mouse.x;
-            currentY = mouse.y;
-            let dx = currentX - startX;
-            let dy = currentY - startY;
-            if (mouse.buttons & selectButton) {
+        function updateGesture(x, y, buttons, modifiers) {
+            currentX = x;
+            currentY = y;
+            let dx = x - startX;
+            let dy = y - startY;
+            if (buttons & selectButton) {
                 if (!isSelecting && (dx * dx + dy * dy) > 36) {
                     isSelecting = true;
                     wasSelecting = true;
-                    if (!(mouse.modifiers & Qt.ControlModifier)) {
+                    if (!(modifiers & Qt.ControlModifier)) {
                         root.selectedPaths = [];
                         view.currentIndex = -1;
                     }
@@ -757,7 +784,7 @@ Item {
                 if (isSelecting) {
                     updateRubberBandSelection();
                 }
-            } else if (mouse.buttons & scrollButton) {
+            } else if (buttons & scrollButton) {
                 if (!isScrolling && (dx * dx + dy * dy) > 36) {
                     isScrolling = true;
                     wasScrolling = true;
@@ -770,11 +797,23 @@ Item {
             }
         }
 
-        onReleased: mouse => {
-            if (isSelecting) {
-                isSelecting = false;
-            }
+        function endGesture() {
+            isSelecting = false;
+            isScrolling = false;
         }
+
+        onPressed: mouse => {
+            if (!insideContent(mouse.x, mouse.y)) {
+                mouse.accepted = false;
+                return;
+            }
+            root.notifyFocus();
+            beginGesture(mouse.x, mouse.y);
+        }
+
+        onPositionChanged: mouse => updateGesture(mouse.x, mouse.y, mouse.buttons, mouse.modifiers)
+
+        onReleased: mouse => endGesture()
 
         onClicked: mouse => {
             if (wasSelecting) {
