@@ -1067,7 +1067,10 @@ Item {
         readonly property int selectButton: AppController.dragToScroll ? Qt.RightButton : Qt.LeftButton
         readonly property int scrollButton: AppController.dragToScroll ? Qt.LeftButton : Qt.RightButton
 
-        readonly property real anchorViewY: anchorContentY + listView.y - listView.contentY
+        // The list is nested inside the horizontal Flickable's ColumnLayout, so
+        // listView.y is not in the drag area's coordinate space. Convert through
+        // the item instead of mixing coordinate systems.
+        readonly property real anchorViewY: mapFromItem(listView, 0, anchorContentY - listView.contentY).y
 
         function insideContent(px, py) {
             const p = mapToItem(listView, px, py);
@@ -1081,7 +1084,7 @@ Item {
             startY = y;
             currentX = x;
             currentY = y;
-            anchorContentY = y - listView.y + listView.contentY;
+            anchorContentY = mapToItem(listView, x, y).y + listView.contentY;
             lastContentY = listView.contentY;
             scrollAnchorContentX = listView.contentX;
             scrollAnchorContentY = listView.contentY;
@@ -1163,15 +1166,15 @@ Item {
         }
 
         function updateRubberBandSelection() {
-            let cy = currentY - listView.y + listView.contentY;
+            let cy = mapToItem(listView, currentX, currentY).y + listView.contentY;
             let ry = Math.min(anchorContentY, cy);
             let rh = Math.abs(cy - anchorContentY);
 
             let newlySelected = [];
             let total = root.model ? root.model.count : 0;
             for (let i = 0; i < total; ++i) {
-                let iy = i * 36;
-                let ih = 36;
+                let iy = i * root.rowHeight;
+                let ih = root.rowHeight;
                 if (iy < ry + rh && iy + ih > ry) {
                     let entry = root.model.get(i);
                     if (entry) {
@@ -1189,8 +1192,8 @@ Item {
 
             onTriggered: {
                 const edge = 32;
-                const top = listView.y;
-                const bottom = listView.y + listView.height;
+                const top = dragSelectArea.mapFromItem(listView, 0, 0).y;
+                const bottom = dragSelectArea.mapFromItem(listView, 0, listView.height).y;
                 let delta = 0;
                 if (dragSelectArea.currentY < top + edge)
                     delta = -Math.min(28, (top + edge - dragSelectArea.currentY) / 2);

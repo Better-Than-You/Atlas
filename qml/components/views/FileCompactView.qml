@@ -802,7 +802,9 @@ Item {
             let rw = Math.abs(cx - anchorContentX);
             let rh = Math.abs(currentY - startY);
 
-            let rows = Math.max(1, Math.floor(gridView.height / gridView.cellHeight));
+            // GridView lays items out inside (height - topMargin - bottomMargin),
+            // so the same inset must be applied when mapping indices to cells.
+            let rows = Math.max(1, Math.floor((gridView.height - gridView.topMargin - gridView.bottomMargin) / gridView.cellHeight));
             let newlySelected = [];
             let total = root.model ? root.model.count : 0;
             for (let i = 0; i < total; ++i) {
