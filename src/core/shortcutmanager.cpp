@@ -26,7 +26,7 @@ const QList<ShortcutManager::Action>& ShortcutManager::defaultActions() {
     static const QList<Action> actions = {
         // --- Application ---
         { "app.preferences", "Open Preferences", "Open the settings dialog", "Application", "settings",
-          { "Ctrl+," } },
+          { "Ctrl+,", "Ctrl+." } },
         { "app.fullscreen", "Toggle Full Screen", "Switch between full screen and windowed mode", "Application", "fullscreen",
           { "F11", "Shift+F11" } },
 
