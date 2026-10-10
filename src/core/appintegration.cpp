@@ -258,21 +258,25 @@ void AppIntegration::shareFiles(const QString& serviceId, const QStringList& pat
 }
 
 void AppIntegration::openWithDefault(const QString& filePath) {
-    // Desktop entries with Terminal=true (e.g. micro) cannot go through
-    // QDesktopServices: in many environments xdg-open's generic path ignores
-    // the flag and runs the binary with no tty attached, so a terminal app
-    // dies with errors like "could not initialize a Screen". Resolve the
-    // default app ourselves and hand terminal apps to MimeService::openWith,
-    // which launches them inside a terminal emulator. Everything else keeps
-    // using the system handler.
+    // Resolve the default handler ourselves and launch it, the same way the
+    // Open With dialog does. Delegating to QDesktopServices/xdg-open is
+    // unreliable: whenever the association lives only in [Added Associations]
+    // (or the desktop's handler cache is stale) xdg-open pops up the "choose
+    // an application to open this file" chooser even though Atlas resolves a
+    // perfectly good handler, so double-click appeared broken while Open With
+    // worked. Terminal=true entries additionally need MimeService::openWith
+    // because xdg-open's generic path ignores the flag and runs the binary
+    // with no tty attached.
     QMimeDatabase db;
     const QString mime = db.mimeTypeForFile(filePath).name();
     const QVariantMap defaultApp = MimeService::instance()->getDefaultApp(mime);
-    if (defaultApp.value("terminal").toBool()) {
-        MimeService::instance()->openWith(filePath, defaultApp.value("path").toString());
+    const QString desktopPath = defaultApp.value("path").toString();
+    if (!desktopPath.isEmpty()) {
+        MimeService::instance()->openWith(filePath, desktopPath);
         return;
     }
 
+    // No known handler: let the system prompt (or handle it however it can).
     QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
 }
 
