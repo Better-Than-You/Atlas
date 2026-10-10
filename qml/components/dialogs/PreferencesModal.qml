@@ -425,12 +425,20 @@ MouseArea {
                                 }
 
                                 ToggleRow {
-                                    last: true
                                     icon: "mouse"
                                     text: qsTr("Single-Click Activation")
                                     subtext: qsTr("Single click opens files; hover over items to select")
                                     checked: AppController.singleClick
                                     onToggled: val => AppController.singleClick = val
+                                }
+
+                                ToggleRow {
+                                    last: true
+                                    icon: "pan_tool_alt"
+                                    text: qsTr("Drag to Scroll")
+                                    subtext: qsTr("Left-drag scrolls, right-drag selects. Off: left-drag selects, right-drag scrolls")
+                                    checked: AppController.dragToScroll
+                                    onToggled: val => AppController.dragToScroll = val
                                 }
                             }
 

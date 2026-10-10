@@ -1026,6 +1026,16 @@ Item {
         property real lastContentY: 0
         property bool isSelecting: false
         property bool wasSelecting: false
+        property bool isScrolling: false
+        property bool wasScrolling: false
+        property real scrollAnchorContentX: 0
+        property real scrollAnchorContentY: 0
+
+        // "Drag to Scroll" swaps the mouse buttons: when enabled the left
+        // button pans the view and the right button rubber-band selects; when
+        // disabled the left button selects and the right button pans.
+        readonly property int selectButton: AppController.dragToScroll ? Qt.RightButton : Qt.LeftButton
+        readonly property int scrollButton: AppController.dragToScroll ? Qt.LeftButton : Qt.RightButton
 
         readonly property real anchorViewY: anchorContentY + listView.y - listView.contentY
 
@@ -1046,16 +1056,20 @@ Item {
             currentY = mouse.y;
             anchorContentY = mouse.y - listView.y + listView.contentY;
             lastContentY = listView.contentY;
+            scrollAnchorContentX = listView.contentX;
+            scrollAnchorContentY = listView.contentY;
             isSelecting = false;
             wasSelecting = false;
+            isScrolling = false;
+            wasScrolling = false;
         }
 
         onPositionChanged: mouse => {
-            if (mouse.buttons & Qt.LeftButton) {
-                currentX = mouse.x;
-                currentY = mouse.y;
-                let dx = currentX - startX;
-                let dy = currentY - startY;
+            currentX = mouse.x;
+            currentY = mouse.y;
+            let dx = currentX - startX;
+            let dy = currentY - startY;
+            if (mouse.buttons & selectButton) {
                 if (!isSelecting && (dx * dx + dy * dy) > 36) {
                     isSelecting = true;
                     wasSelecting = true;
@@ -1066,6 +1080,16 @@ Item {
                 }
                 if (isSelecting) {
                     updateRubberBandSelection();
+                }
+            } else if (mouse.buttons & scrollButton) {
+                if (!isScrolling && (dx * dx + dy * dy) > 36) {
+                    isScrolling = true;
+                    wasScrolling = true;
+                }
+                if (isScrolling) {
+                    const limit = Math.max(0, listView.contentHeight - listView.height);
+                    listView.cancelFlick();
+                    listView.contentY = Math.max(0, Math.min(limit, scrollAnchorContentY - dy));
                 }
             }
         }
@@ -1079,6 +1103,10 @@ Item {
         onClicked: mouse => {
             if (wasSelecting) {
                 wasSelecting = false;
+                return;
+            }
+            if (wasScrolling) {
+                wasScrolling = false;
                 return;
             }
             if (mouse.button === Qt.BackButton || mouse.button === Qt.ExtraButton1) {
